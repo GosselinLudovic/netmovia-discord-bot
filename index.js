@@ -123,6 +123,12 @@ client.on("messageCreate", async (message) => {
     console.error("Erreur Discord → NetMovIA :", err);
   }
 });
+/* ------------------------------------------------------------------
+   Petit endpoint de "ping" pour réveiller le bot depuis NetMovIA
+------------------------------------------------------------------ */
+app.get("/ping", (req, res) => {
+  res.json({ ok: true, ts: Date.now() });
+});
 
 /* ------------------------------------------------------------------
    Serveur HTTP pour Render
@@ -132,3 +138,4 @@ app.listen(PORT, () => {
 });
 
 client.login(DISCORD_BOT_TOKEN);
+

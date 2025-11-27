@@ -101,7 +101,7 @@ client.on("messageCreate", async (message) => {
     // message vide (pièces jointes seulement) -> on ignore pour l'instant
     if (!payload.message.trim()) return;
 
-    await fetch(NETMOVIA_WEBHOOK_URL, {
+    const res = await fetch(NETMOVIA_WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -109,6 +109,22 @@ client.on("messageCreate", async (message) => {
       },
       body: JSON.stringify(payload)
     });
+
+    const text = await res.text().catch(() => "");
+
+    if (!res.ok) {
+      console.error(
+        "Discord → NetMovIA : HTTP",
+        res.status,
+        text.slice(0, 200)
+      );
+    } else {
+      console.log(
+        "Discord → NetMovIA OK:",
+        res.status,
+        text.slice(0, 200)
+      );
+    }
   } catch (err) {
     console.error("Erreur Discord → NetMovIA :", err);
   }

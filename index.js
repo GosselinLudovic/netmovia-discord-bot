@@ -5,18 +5,22 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const app = express();
 app.use(bodyParser.json());
 
-// Variables depuis Render
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const CREATOR_CHANNEL_ID = process.env.DISCORD_CREATORS_CHANNEL_ID;
-const SUBSCRIBER_CHANNEL_ID = process.env.DISCORD_SUBSCRIBERS_CHANNEL_ID;
-const PORT = process.env.PORT || 10000;
+// ⚙️ Variables d'environnement
+const DISCORD_BOT_TOKEN        = process.env.DISCORD_BOT_TOKEN;
+const CREATOR_CHANNEL_ID       = process.env.DISCORD_CREATORS_CHANNEL_ID;
+const SUBSCRIBER_CHANNEL_ID    = process.env.DISCORD_SUBSCRIBERS_CHANNEL_ID;
+const PORT                     = process.env.PORT || 10000;
 
-if (!DISCORD_BOT_TOKEN) {
-  console.error("ERREUR: DISCORD_BOT_TOKEN manquant !");
+// ➜ pour renvoyer les messages vers NetMovIA
+const NETMOVIA_WEBHOOK_URL     = process.env.NETMOVIA_WEBHOOK_URL;
+const NETMOVIA_SECRET          = process.env.NETMOVIA_SECRET;
+
+// sécurité : on vérifie le token
+if (!DISCORD_BOT_TOKEN || typeof DISCORD_BOT_TOKEN !== "string") {
+  console.error("ERREUR: DISCORD_BOT_TOKEN est manquant ou invalide.");
   process.exit(1);
 }
 
-// Bot Discord
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -26,38 +30,95 @@ const client = new Client({
 });
 
 client.on("ready", () => {
-  console.log(`NetMovIA Bot connecté : ${client.user.tag}`);
+  console.log(`NetMovIA Bot connecté en tant que ${client.user.tag}`);
 });
 
-// Route API appelée par ton site
+/* ------------------------------------------------------------------
+   1) NetMovIA → Discord (déjà OK, on conserve)
+------------------------------------------------------------------ */
 app.post("/send", async (req, res) => {
   try {
     const { message, target } = req.body;
 
     if (!message) {
-      return res.status(400).json({ error: "Message obligatoire" });
+      return res.status(400).json({ error: "No message provided" });
     }
 
-    // Choix du salon selon target
-    let channelId = null;
+    let channelId;
+    if (target === "creator") {
+      channelId = CREATOR_CHANNEL_ID;
+    } else {
+      channelId = SUBSCRIBER_CHANNEL_ID;
+    }
 
-    if (target === "creator") channelId = CREATOR_CHANNEL_ID;
-    else if (target === "subscriber") channelId = SUBSCRIBER_CHANNEL_ID;
-    else return res.status(400).json({ error: "Target incorrect" });
+    if (!channelId) {
+      return res.status(400).json({ error: "No channel configured" });
+    }
 
     const channel = await client.channels.fetch(channelId);
     await channel.send(message);
 
     return res.json({ success: true });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Erreur envoi Discord" });
+    console.error("Erreur /send :", err);
+    return res.status(500).json({ error: "Failed to send message" });
   }
 });
 
-// Serveur Render
+/* ------------------------------------------------------------------
+   2) Discord → NetMovIA
+      Quand quelqu'un parle dans #abonnés ou #créateurs,
+      on POST vers api/chat_send_from_discord.php
+------------------------------------------------------------------ */
+client.on("messageCreate", async (message) => {
+  try {
+    // on ignore les messages du bot lui-même
+    if (message.author.bot) return;
+
+    // uniquement les deux salons NetMovIA
+    if (
+      message.channelId !== CREATOR_CHANNEL_ID &&
+      message.channelId !== SUBSCRIBER_CHANNEL_ID
+    ) {
+      return;
+    }
+
+    // sécurité : si l'URL n'est pas configurée, on ne fait rien
+    if (!NETMOVIA_WEBHOOK_URL || !NETMOVIA_SECRET) {
+      console.warn("NETMOVIA_WEBHOOK_URL ou NETMOVIA_SECRET manquant");
+      return;
+    }
+
+    const room =
+      message.channelId === CREATOR_CHANNEL_ID ? "creators" : "subscribers";
+
+    const payload = {
+      room,
+      author: message.author.username,
+      message: message.content || ""
+    };
+
+    // message vide (pièces jointes seulement) -> on ignore pour l'instant
+    if (!payload.message.trim()) return;
+
+    await fetch(NETMOVIA_WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Discord-Secret": NETMOVIA_SECRET
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error("Erreur Discord → NetMovIA :", err);
+  }
+});
+
+/* ------------------------------------------------------------------
+   Serveur HTTP pour Render
+------------------------------------------------------------------ */
 app.listen(PORT, () => {
-  console.log("Webhook Discord actif sur le port " + PORT);
+  console.log(`Webhook Discord actif sur le port ${PORT}`);
 });
 
 client.login(DISCORD_BOT_TOKEN);

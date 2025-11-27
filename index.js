@@ -5,59 +5,59 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const app = express();
 app.use(bodyParser.json());
 
-// ⚠️ Sur Render on lit les variables d'environnement
+// Variables depuis Render
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const CREATOR_CHANNEL_ID = process.env.DISCORD_CREATORS_CHANNEL_ID;
 const SUBSCRIBER_CHANNEL_ID = process.env.DISCORD_SUBSCRIBERS_CHANNEL_ID;
 const PORT = process.env.PORT || 10000;
 
-// sécurité : on vérifie que le token existe
-if (!DISCORD_BOT_TOKEN || typeof DISCORD_BOT_TOKEN !== "string") {
-  console.error("ERREUR: DISCORD_BOT_TOKEN est manquant ou invalide.");
+if (!DISCORD_BOT_TOKEN) {
+  console.error("ERREUR: DISCORD_BOT_TOKEN manquant !");
   process.exit(1);
 }
 
-
-// Initialisation du bot
+// Bot Discord
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
 client.on("ready", () => {
-    console.log(`NetMovIA Bot connecté en tant que ${client.user.tag}`);
+  console.log(`NetMovIA Bot connecté : ${client.user.tag}`);
 });
 
-// Route appelée par NetMovIA pour envoyer un message vers Discord
+// Route API appelée par ton site
 app.post("/send", async (req, res) => {
-    try {
-        const { message } = req.body;
+  try {
+    const { message, target } = req.body;
 
-        if (!message) {
-            return res.status(400).json({ error: "No message provided" });
-        }
-
-                // Pour l'instant : on envoie dans le salon abonnés par défaut
-        const channelId = SUBSCRIBER_CHANNEL_ID || CREATOR_CHANNEL_ID;
-        const channel = await client.channels.fetch(channelId);
-        await channel.send(message);
-
-
-        return res.json({ success: true });
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ error: "Failed to send message" });
+    if (!message) {
+      return res.status(400).json({ error: "Message obligatoire" });
     }
+
+    // Choix du salon selon target
+    let channelId = null;
+
+    if (target === "creator") channelId = CREATOR_CHANNEL_ID;
+    else if (target === "subscriber") channelId = SUBSCRIBER_CHANNEL_ID;
+    else return res.status(400).json({ error: "Target incorrect" });
+
+    const channel = await client.channels.fetch(channelId);
+    await channel.send(message);
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Erreur envoi Discord" });
+  }
 });
 
-// Mini serveur HTTP pour Render
+// Serveur Render
 app.listen(PORT, () => {
-    console.log(`Webhook Discord actif sur le port ${PORT}`);
+  console.log("Webhook Discord actif sur le port " + PORT);
 });
 
 client.login(DISCORD_BOT_TOKEN);
-
-

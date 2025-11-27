@@ -11,7 +11,7 @@ const CREATOR_CHANNEL_ID       = process.env.DISCORD_CREATORS_CHANNEL_ID;
 const SUBSCRIBER_CHANNEL_ID    = process.env.DISCORD_SUBSCRIBERS_CHANNEL_ID;
 const PORT                     = process.env.PORT || 10000;
 
-// ➜ pour renvoyer les messages vers NetMovIA
+// ➜ pour renvoyer les messages vers NetMovIA (Discord → NetMovIA)
 const NETMOVIA_WEBHOOK_URL     = process.env.NETMOVIA_WEBHOOK_URL;
 const NETMOVIA_SECRET          = process.env.NETMOVIA_SECRET;
 
@@ -29,12 +29,13 @@ const client = new Client({
   ]
 });
 
-client.on("ready", () => {
+client.once("ready", () => {
   console.log(`NetMovIA Bot connecté en tant que ${client.user.tag}`);
 });
 
 /* ------------------------------------------------------------------
-   1) NetMovIA → Discord (déjà OK, on conserve)
+   1) NetMovIA → Discord (on laisse en secours, même si maintenant
+      ton site utilise les webhooks directs)
 ------------------------------------------------------------------ */
 app.post("/send", async (req, res) => {
   try {
@@ -83,7 +84,6 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // sécurité : si l'URL n'est pas configurée, on ne fait rien
     if (!NETMOVIA_WEBHOOK_URL || !NETMOVIA_SECRET) {
       console.warn("NETMOVIA_WEBHOOK_URL ou NETMOVIA_SECRET manquant");
       return;
@@ -98,10 +98,10 @@ client.on("messageCreate", async (message) => {
       message: message.content || ""
     };
 
-    // message vide (pièces jointes seulement) -> on ignore pour l'instant
+    // message vide (juste une image/pièce jointe) → on ignore
     if (!payload.message.trim()) return;
 
-    const res = await fetch(NETMOVIA_WEBHOOK_URL, {
+    const resp = await fetch(NETMOVIA_WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -110,18 +110,12 @@ client.on("messageCreate", async (message) => {
       body: JSON.stringify(payload)
     });
 
-    const text = await res.text().catch(() => "");
-
-    if (!res.ok) {
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
       console.error(
         "Discord → NetMovIA : HTTP",
-        res.status,
-        text.slice(0, 200)
-      );
-    } else {
-      console.log(
-        "Discord → NetMovIA OK:",
-        res.status,
+        resp.status,
+        resp.statusText,
         text.slice(0, 200)
       );
     }

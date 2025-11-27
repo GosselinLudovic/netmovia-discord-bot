@@ -5,9 +5,18 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const app = express();
 app.use(bodyParser.json());
 
-// ⚠️ Sur Render on mettra ces valeurs en variables d'environnement
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const CHANNEL_ID = process.env.CHANNEL_ID;
+// ⚠️ Sur Render on lit les variables d'environnement
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const CREATOR_CHANNEL_ID = process.env.DISCORD_CREATORS_CHANNEL_ID;
+const SUBSCRIBER_CHANNEL_ID = process.env.DISCORD_SUBSCRIBERS_CHANNEL_ID;
+const PORT = process.env.PORT || 10000;
+
+// sécurité : on vérifie que le token existe
+if (!DISCORD_BOT_TOKEN || typeof DISCORD_BOT_TOKEN !== "string") {
+  console.error("ERREUR: DISCORD_BOT_TOKEN est manquant ou invalide.");
+  process.exit(1);
+}
+
 
 // Initialisation du bot
 const client = new Client({
@@ -31,8 +40,11 @@ app.post("/send", async (req, res) => {
             return res.status(400).json({ error: "No message provided" });
         }
 
-        const channel = await client.channels.fetch(CHANNEL_ID);
+                // Pour l'instant : on envoie dans le salon abonnés par défaut
+        const channelId = SUBSCRIBER_CHANNEL_ID || CREATOR_CHANNEL_ID;
+        const channel = await client.channels.fetch(channelId);
         await channel.send(message);
+
 
         return res.json({ success: true });
     } catch (err) {
@@ -42,8 +54,10 @@ app.post("/send", async (req, res) => {
 });
 
 // Mini serveur HTTP pour Render
-app.listen(10000, () => {
-    console.log("Webhook Discord actif sur le port 10000");
+app.listen(PORT, () => {
+    console.log(`Webhook Discord actif sur le port ${PORT}`);
 });
 
-client.login(DISCORD_TOKEN);
+client.login(DISCORD_BOT_TOKEN);
+
+

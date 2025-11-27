@@ -1,0 +1,14 @@
+services:
+  - type: worker
+    name: netmovia-discord-bot
+    env: node
+    buildCommand: "npm install"
+    startCommand: "node index.js"
+    plan: free
+
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+
